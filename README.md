@@ -131,7 +131,8 @@ print(f"Known entities: {info.known_entities}, reports: {info.reports}")
 ```
 
 A client should check the major version of the interface with `info.api_major_version`, this release
-implements OFD 2.1. The server information also publishes what content scanning supports
+implements OFD 2.2. Features of a minor version are checked with `info.is_api_version_at_least(2, 2)`
+(or `info.api_minor_version`). The server information also publishes what content scanning supports
 (`scan_content_types`, `concerns` and `default_concerns`, and the limits on scanned files,
 `max_scan_files` and `max_scan_file_size`), whether URL uploads are accepted
 (`url_uploads_allowed`), whether telephone entities are public (`public_telephone_entities`) and
@@ -216,6 +217,20 @@ scan = client.scan_content(
 
 Files the server records as evidence are kept as attachments of that evidence, and many files carry
 metadata, such as the location a photograph was taken at, that the server does not need.
+
+Files can also be named by URL, keyed the same way, for the server to retrieve itself, such as the
+media of an MMS message held by the carrier. A request that only names file URLs is sent as JSON.
+Servers before OFD 2.2 reject file URLs, and a server that does not retrieve them, or cannot retrieve
+a file, treats it like a file it does not interpret, so the result does not depend on whether it
+does. Retrieved files follow the files of their input in `file_index`:
+
+```python
+if info.is_api_version_at_least(2, 2):
+    scan = client.scan_content(
+        ContentInput(content_type=ContentType.SMS),
+        file_urls={0: ["https://carrier.example/mms/1.jpg"]},
+    )
+```
 
 Scanning content and inspecting the classification result:
 
@@ -457,6 +472,24 @@ try:
     client.get_entity_record("non-existent-entity")
 except FederationClientException as e:
     print(f"Request failed with status {e.status_code}: {e}")
+```
+
+A server may limit the rate of requests. A request it rejects with HTTP 429, or with 503 while it is
+unavailable, was not performed and may be repeated, including one that is not idempotent:
+`e.is_retryable` tells so, and `e.retry_after` holds the delay in seconds the server asked for, or
+`None`, in which case back off exponentially. The client does not retry by itself:
+
+```python
+import time
+
+for attempt in range(5):
+    try:
+        scan = client.scan_content("Suspicious message to inspect")
+        break
+    except FederationClientException as e:
+        if not e.is_retryable:
+            raise
+        time.sleep(e.retry_after if e.retry_after is not None else 2**attempt)
 ```
 
 Failures without a response, such as connection errors, have a status code of 0. Invalid arguments,
