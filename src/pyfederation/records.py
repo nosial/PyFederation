@@ -390,7 +390,24 @@ class ServerInformation(_Record):
     def api_major_version(self) -> int:
         """The major version of the OFD interface the server implements, -1 if it is unreadable."""
         major = self.api_version.split(".", 1)[0].strip()
-        return int(major) if major.isdecimal() else -1
+        return int(major) if major.isascii() and major.isdecimal() else -1
+
+    @property
+    def api_minor_version(self) -> int:
+        """The minor version of the OFD interface the server implements, 0 if the version has none
+        and -1 if it is unreadable."""
+        parts = self.api_version.split(".")
+        if len(parts) > 2 or self.api_major_version < 0:
+            return -1
+        minor = parts[1].strip() if len(parts) == 2 else "0"
+        return int(minor) if minor.isascii() and minor.isdecimal() else -1
+
+    def is_api_version_at_least(self, major: int, minor: int = 0) -> bool:
+        """Whether the server implements at least the given version of the OFD interface, e.g.
+        `is_api_version_at_least(2, 2)` before naming the files of scanned content by URL."""
+        if self.api_minor_version < 0:
+            return False
+        return (self.api_major_version, self.api_minor_version) >= (major, minor)
 
 
 class UploadResult(_Record):

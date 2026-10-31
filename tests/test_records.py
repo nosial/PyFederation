@@ -249,6 +249,28 @@ def test_api_major_version(api_version: str, major: int) -> None:
     assert ServerInformation.model_validate(payload).api_major_version == major
 
 
+@pytest.mark.parametrize(
+    ("api_version", "minor"),
+    [("2.2", 2), ("2", 0), ("2.10", 10), ("2.x", -1), ("2.2.1", -1), ("", -1)],
+)
+def test_api_minor_version(api_version: str, minor: int) -> None:
+    payload = payloads.server_information()
+    payload["api_version"] = api_version
+
+    assert ServerInformation.model_validate(payload).api_minor_version == minor
+
+
+@pytest.mark.parametrize(
+    ("api_version", "at_least"),
+    [("2.2", True), ("2.10", True), ("3.0", True), ("2.1", False), ("1.9", False), ("v2.2", False)],
+)
+def test_is_api_version_at_least(api_version: str, at_least: bool) -> None:
+    payload = payloads.server_information()
+    payload["api_version"] = api_version
+
+    assert ServerInformation.model_validate(payload).is_api_version_at_least(2, 2) is at_least
+
+
 @pytest.mark.parametrize(("published", "allowed"), [(None, True), (True, True), (False, False)])
 def test_illegal_content_is_allowed_unless_the_server_declines_it(
     published: bool | None, allowed: bool
