@@ -96,6 +96,23 @@ async def test_error_responses_raise(client: Any, api: respx.MockRouter) -> None
     )
 
 
+async def test_rate_limited_requests_raise_with_their_delay(
+    client: Any, api: respx.MockRouter
+) -> None:
+    api.post("/scan").respond(
+        429,
+        json={"success": False, "code": 429, "message": "Too Many Requests", "retry_after": 12},
+        headers={"Retry-After": "12"},
+    )
+
+    with pytest.raises(FederationClientException) as raised:
+        await run(client.scan_content("spam"))
+
+    assert raised.value.status_code == 429
+    assert raised.value.retry_after == 12
+    assert raised.value.is_retryable
+
+
 async def test_transport_errors_raise(client: Any, api: respx.MockRouter) -> None:
     api.get("/info").mock(side_effect=httpx.ConnectError("Connection refused"))
 
