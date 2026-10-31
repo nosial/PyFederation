@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-11-01
+
+This release follows version `2.2` of the OFD Specification, the client of
+[FederationLib](https://github.com/nosial/FederationLib) 2.2.0 and JFederation 2.2.0, and remains compatible with
+servers implementing OFD 2.1 and 2.0.
+
+### Added
+ - Scanned file URLs: the `file_urls` argument of `scan_content()` takes the URLs of further files of each content
+   input, keyed by its position in the evidence, for the server to retrieve itself. A request that only names file
+   URLs is sent as JSON, and a content input with file URLs may omit its text. Servers before OFD 2.2 reject file URLs
+ - `ServerInformation.api_minor_version` and `is_api_version_at_least(major, minor)`
+ - `FederationClientException.retry_after`, the delay in seconds of a request the server rejected with HTTP 429 or 503,
+   from the `retry_after` member of its error response or its Retry-After header, and `is_retryable`. The client does
+   not retry by itself
+
+### Changed
+ - The integration tests run against FederationLib 2.2.0, since its 2.1.0 image predates its support of OFD 2.1
+
 ## [2.1.0] - 2026-10-28
 
 This release follows version `2.1` of the OFD Specification and the client of
