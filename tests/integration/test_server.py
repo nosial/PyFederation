@@ -108,6 +108,20 @@ async def test_scan_content_with_files(client: Any, records: Records, tmp_path: 
     assert all(detection.concern is IncidentType.SPAM for detection in scanned.detections)
 
 
+async def test_scan_content_with_file_urls(client: Any) -> None:
+    if not (await run(client.get_server_information())).is_api_version_at_least(2, 2):
+        pytest.skip("The server does not accept file URLs")
+
+    scanned = await run(
+        client.scan_content(
+            ContentInput(content_type=ContentType.SMS),
+            file_urls={0: ["https://example.com/photo.png"]},
+        )
+    )
+
+    assert scanned.resolved_entities == []
+
+
 async def test_scan_typed_content(client: Any) -> None:
     inputs = [
         ContentInput("Meeting moved to 3pm"),

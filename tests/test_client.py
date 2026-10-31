@@ -323,6 +323,49 @@ async def test_scan_content_with_files_of_one_input(
     assert parts["file_0_1"] == ("second.jpg", b"JPEG")
 
 
+async def test_scan_content_with_file_urls_only_is_a_json_request(
+    client: Any, api: respx.MockRouter
+) -> None:
+    route = api.post("/scan").respond(json=scan_response())
+
+    await run(
+        client.scan_content(
+            ContentInput(content_type=ContentType.SMS),
+            file_urls={0: ["https://carrier.example/mms/1.jpg"]},
+        )
+    )
+
+    request = route.calls.last.request
+    assert request.headers["Content-Type"] == "application/json"
+    assert json.loads(request.content)["evidence"]["file_urls"] == [
+        "https://carrier.example/mms/1.jpg"
+    ]
+
+
+async def test_scan_content_with_files_and_file_urls(
+    client: Any, api: respx.MockRouter, tmp_path: Path
+) -> None:
+    route = api.post("/scan").respond(json=scan_response())
+    photo = tmp_path / "photo.jpg"
+    photo.write_bytes(b"JPEG")
+
+    await run(
+        client.scan_content(
+            "Look at these",
+            files={0: [photo]},
+            file_urls={0: ["https://example.com/a.jpg", "https://example.com/b.jpg"]},
+        )
+    )
+
+    parts = multipart_parts(route.calls.last.request)
+    assert json.loads(parts["evidence"][1]) == {
+        "text_content": "Look at these",
+        "confidential": False,
+        "files": ["file_0_0"],
+        "file_urls": ["https://example.com/a.jpg", "https://example.com/b.jpg"],
+    }
+
+
 async def test_non_json_responses_raise(client: Any, api: respx.MockRouter) -> None:
     api.get("/info").respond(content=b"<html></html>", headers={"Content-Type": "text/html"})
 
@@ -352,7 +395,7 @@ async def test_non_json_responses_raise(client: Any, api: respx.MockRouter) -> N
         ),
         (
             lambda client: client.scan_content([ContentInput(note="Seen in a group")]),
-            "At least one evidence record must contain text content or a file",
+            "At least one evidence record must contain text content, a file or a file URL",
         ),
         (
             lambda client: client.scan_content("spam", files={1: ["photo.jpg"]}),
@@ -369,6 +412,20 @@ async def test_non_json_responses_raise(client: Any, api: respx.MockRouter) -> N
         (
             lambda client: client.scan_content("spam", files={0: ["does-not-exist.jpg"]}),
             "File does not exist: does-not-exist.jpg",
+        ),
+        (
+            lambda client: client.scan_content(
+                "spam", file_urls={1: ["https://example.com/a.jpg"]}
+            ),
+            "The file URLs are keyed by an evidence index that does not exist: 1",
+        ),
+        (
+            lambda client: client.scan_content("spam", file_urls={0: "https://example.com/a.jpg"}),
+            "The file URLs of the evidence at index 0 must be a non-empty sequence of URLs",
+        ),
+        (
+            lambda client: client.scan_content("spam", file_urls={0: [""]}),
+            "The file URLs of the evidence at index 0 must be a non-empty sequence of URLs",
         ),
         (
             lambda client: client.request("TRACE", "my-plugin"),

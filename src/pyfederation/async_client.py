@@ -22,6 +22,7 @@ from ._utils import (
     path_segment,
     readable_file,
     require,
+    scan_file_urls,
     scan_files,
     search_params,
 )
@@ -270,6 +271,7 @@ class AsyncFederationClient:
         threshold: float | None = None,
         concerns: Sequence[IncidentType] | None = None,
         files: Mapping[int, Sequence[str | PathLike[str]]] | None = None,
+        file_urls: Mapping[int, Sequence[str]] | None = None,
     ) -> ScannedContent:
         """Scans content for entities and blacklist records, and classifies it.
 
@@ -286,12 +288,24 @@ class AsyncFederationClient:
                 {0: ["photo.jpg"]}. A content input with files may omit its text. Files are sent
                 in a multipart/form-data request, which a server that does not scan files accepts
                 and ignores, but which a server before OFD 2.1 may reject.
+            file_urls: The absolute HTTP or HTTPS URLs of further files of each content input,
+                keyed by its position in the evidence, which the server retrieves itself, e.g.
+                {0: ["https://example.com/photo.jpg"]}. A content input with file URLs may omit its
+                text. A server that does not retrieve them, or a file it cannot retrieve, is
+                treated like a file it does not interpret. Only name file URLs to a server for
+                which `is_api_version_at_least(2, 2)`, earlier servers reject them. The file index
+                of a retrieved file follows those of the files of its input.
         """
         payload = evidence_payload(evidence)
         items = payload if isinstance(payload, list) else [payload]
         parts = scan_files(items, files or {})
-        if not parts and not any(item.get("text_content") for item in items):
-            raise ValueError("At least one evidence record must contain text content or a file")
+        scan_file_urls(items, file_urls or {})
+        if not parts and not any(
+            item.get("text_content") or item.get("file_urls") for item in items
+        ):
+            raise ValueError(
+                "At least one evidence record must contain text content, a file or a file URL"
+            )
         if concerns is not None and not concerns:
             raise ValueError("Concerns cannot be empty")
 

@@ -136,6 +136,27 @@ def scan_files(
     return parts
 
 
+def scan_file_urls(items: list[dict[str, Any]], file_urls: Mapping[int, Sequence[str]]) -> None:
+    """Names the URLs of the further files of each content input, keyed by the position of the
+    input, in its file_urls member."""
+    for index, urls in file_urls.items():
+        if not 0 <= index < len(items):
+            raise ValueError(
+                f"The file URLs are keyed by an evidence index that does not exist: {index}"
+            )
+        if (
+            isinstance(urls, str)
+            or not urls
+            or not all(isinstance(url, str) and url for url in urls)
+        ):
+            raise ValueError(
+                f"The file URLs of the evidence at index {index} must be a non-empty sequence "
+                "of URLs"
+            )
+
+        items[index]["file_urls"] = list(urls)
+
+
 def attachment_file_name(response: httpx.Response, default: str) -> str:
     """Returns the file name given by the Content-Disposition header, without directories or a
     drive letter.
